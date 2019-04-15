@@ -10,11 +10,11 @@
 
 # To Dos : #
 
--[ ] The trie must be made in text.rkt and must be
-      -[ ] Able to add word on pressing space
-      -[ ] Able to delete word on backspacing out a word completely
-      -[ ] Above two tasks amount to the tracking of the current word
--[ ] Probably the autocompletion-cursor implementation will also be done
+ [x] The trie must be made in text.rkt and must be
+      [x] Able to add word on pressing space
+      [x] Able to delete word on backspacing out a word completely
+      [x] Above two tasks amount to the tracking of the current word
+ [x] Probably the autocompletion-cursor implementation will also be done
       in text.rkt only (Reason: sending whole trie back and forth maybe?)
--[ ] Try implementing bulk delete and bulk adding (if user uses mouse)
--[ ] Implementation of edit distance in finding nearest matching prefixes
+ [x] Try implementing bulk delete and bulk adding (if user uses mouse)
+ [x] Implementation of edit distance in finding nearest matching prefixes
