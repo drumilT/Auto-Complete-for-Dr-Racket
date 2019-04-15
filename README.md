@@ -18,3 +18,4 @@
       in text.rkt only (Reason: sending whole trie back and forth maybe?)
  - [ ] Try implementing bulk delete and bulk adding (if user uses mouse)
  - [ ] Implementation of edit distance in finding nearest matching prefixes
+ - [ ] insert-currently-selected-string (increase frequency of this word by 1)
