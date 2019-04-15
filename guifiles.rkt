@@ -1,21 +1,24 @@
 #lang racket
 (require racket/gui)
-(define start 0)
-(define f (new frame% [label "My Racket"]
+(require "prefix-tree.rkt")
+(define mytree (new prefix-tree% [initial-word-list '()])) 
+(define f (new frame% [label "Autcomplete with racket"]
                       [width 400]
                       [height 400]))
 (define c (new editor-canvas% [parent f]))
 (define mytext%
   (class text%
   (inherit/super find-wordbreak)
-      (inherit/super get-text)
+   (inherit/super get-text)
+    (define start 0)
      (inherit/super get-end-position)
     (inherit/super get-start-position)
     (super-new)
     (define/override (on-char key-event)
       (let ((code (send key-event get-key-code)))
-        (super on-char key-event)
-        (cond [(equal? code #\space) (begin (displayln (super get-text start (get-end-position))) (set! start (get-end-position)))]
+        (cond [(equal? code #\space) (begin (send mytree add-word (super get-text start (get-end-position)) 1) (set! start (+ (get-end-position) 1)) (super on-char key-event))]
+              [(equal? code #\backspace) (begin (send mytree delete  (super get-text start (get-end-position)))
+              [else (super on-char key-event)]
               )))))
 (define t (new mytext%))
 (send c set-editor t)
