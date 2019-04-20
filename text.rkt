@@ -3895,9 +3895,12 @@ designates the character that triggers autocompletion
     ;; Number -> String
     ;; The word that ends at the current position of the editor
     (define/public (get-word-at current-pos)
-      (let ([start-pos (box current-pos)]) 
-        (find-wordbreak start-pos #f 'caret)
-        (get-text (unbox start-pos) current-pos)))
+      (let ([start-pos (box current-pos)]
+            [end-pos (box current-pos)]) 
+        (find-wordbreak start-pos end-pos 'caret)
+        (let ([the-word (get-text (unbox start-pos) (unbox end-pos))])
+        	(begin (displayln the-word)
+                       the-word))))
     
     ;; String Number Number scrolling-cursor<%> -> void
     ;; Popup a menu of the given words at the location of the end-pos. Each menu item
@@ -3935,24 +3938,35 @@ designates the character that triggers autocompletion
              [(and full? 
                    (memq code '(down wheel-down)))
               (send completions-box next-item)]
-             [(completion-mode-key-event? key-event)
-              (begin
-                (super on-char key-event)
-                (constrict-possible-completions code))]
+             ; [(completion-mode-key-event? key-event)
+             ;  (begin
+             ;  	(displayln "completion-key-event")
+             ;  	(get-word-at (get-end-position))
+             ;    (super on-char key-event)
+             ;    (constrict-possible-completions code))]
              [(and full? (eq? code 'prior)) (send completions-box scroll-display-up)]
              [(and full? (eq? code 'next))  (send completions-box scroll-display-down)]
              [(eq? code 'release)
               (void)]
              [(eq? code #\backspace)
-              (widen-possible-completions)
-              (super on-char key-event)]
+              (begin
+              	(get-word-at (get-end-position)) 
+              	(widen-possible-completions) ;;check if its checking applying backspace in the middle of word
+              	(super on-char key-event))]
              [(eq? code #\return)
               (when full?
-                (insert-currently-selected-string))
+                (insert-currently-selected-string)) ;; change this so that it also inserts to trie
               (destroy-completions-box)]
+             ;; add a case to check space and a closing bracket(e.g.  (lambda (x) (...) ))
+             ;; it will first destroy completions box
+             ;; then it will divide x|y to x |y where x and y can be of 0 or more in length
+             ;; add both x and y to the trie if they are not #\space
              [(and (char? code) (char-graphic? code))
-              (super on-char key-event)
-              (constrict-possible-completions code)]
+              (begin
+              	(displayln "completion-key-event")
+              	(displayln (get-word-at (get-end-position)))
+               	(super on-char key-event)
+              	(constrict-possible-completions code))]
              [else
               (destroy-completions-box)
               (super on-char key-event)]))]
