@@ -15,7 +15,7 @@
     (init-field initial-word-list)
 
     ;; private variable to define the trie
-    (define main-trie (gnode #\space 0 '()))
+    (define main-trie (gnode #\space 10 '()))
 
     ;; temp for using map without displaying
     (define te 1)

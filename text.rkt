@@ -3877,16 +3877,14 @@ designates the character that triggers autocompletion
     (define all-completions-length (length all-completions))
    
     (define/public (narrow prefix)
-      (set! word prefix)
-      this)
+      (new autocompletion-cursor% [word prefix]))
    
     (define/public (widen prefix)
       (let ([strlen (string-length word)])
         (cond
           [(< strlen 2) #f]
           [else
-           (set! word prefix)
-           this])))
+           (new autocompletion-cursor% [word prefix])])))
 ;           (new autocompletion-cursor%
 ;                [word (substring word 0 (- (string-length word) 1))]
 ;                [all-words all-words])])))
@@ -3961,6 +3959,7 @@ designates the character that triggers autocompletion
       (when (and completions-box (not before?))
         (send completions-box draw dc dx dy)))
     
+    (define (print x) (begin (displayln x) x))
 
     (define (pos-last-space x)
       (cond [(or (char-whitespace? (get-character x)) (char-punctuation? (get-character x))) x]
@@ -4003,7 +4002,7 @@ designates the character that triggers autocompletion
     ;; Number -> String
     ;; The word that ends at the current position of the editor
     ;; update the word around the current position of the cursor
-    ; (define/public (get-word-at current-pos)
+    ; (define/public (get-word-at current-output-ports)
     ;   (let ([start-pos (box current-pos)]
     ;         [end-pos (box current-pos)]) 
     ;     (begin (find-wordbreak start-pos end-pos 'selection)
@@ -4061,30 +4060,45 @@ designates the character that triggers autocompletion
               (void)]
              [(eq? code #\backspace)
               (begin
+              	(displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
               	(displayln "backspace-key-event")
               	(displayln (get-word-at (get-end-position)))
+              	(when (get-word-at (get-end-position)) (send completions-box delete-word (get-word-at (get-end-position))))
                 (super on-char key-event)
-              	(widen-possible-completions (get-word-at (get-end-position))))]
+                (displayln (get-word-at (get-end-position)))
+                (when (get-word-at (get-end-position)) (send completions-box insert-word (get-word-at (get-end-position))))
+              	(widen-possible-completions (get-word-at (get-end-position)))
+              	(displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@"))]
              [(eq? code #\return)
-              (begin (cond [full? (insert-currently-selected-string)]
-              			   [else (send completions-box insert-word (get-word-at
-                                                  (get-end-position)))]) ;; change this so that it also inserts to trie 
-              		 (destroy-completions-box))] ;; moreover make sure it removes full word around cursor.. if in between
+              (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
+              	     (displayln "return-key-event")
+              	     (displayln (get-word-at (get-end-position)))
+              	     (when (get-word-at (get-end-position)) (send completions-box delete-word (get-word-at (get-end-position))))
+					 (cond [full? (insert-currently-selected-string)]
+              			   [else (send completions-box insert-word (get-word-at (get-end-position)))]) ;; change this so that it also inserts to trie 
+              		 (destroy-completions-box)
+              		 (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@"))] ;; moreover make sure it removes full word around cursor.. if in between
              ;; add a case to check space and a closing bracket(e.g.  (lambda (x) (...) ))
              ;; it will first destroy completions box
              ;; then it will divide x|y to x |y where x and y can be of 0 or more in length
              ;; add both x and y to the trie if they are not #\space
              [(and (char? code) (char-graphic? code))
               (begin
+              	(displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
               	(displayln "completion-key-event")
               	(displayln (get-word-at (get-end-position)))
+              	(when (get-word-at (get-end-position)) (send completions-box delete-word (get-word-at (get-end-position))))
                	(super on-char key-event)
-              	(constrict-possible-completions (get-word-at (get-end-position))))];; send word instead of code
+               	(displayln (get-word-at (get-end-position)))
+              	(when (get-word-at (get-end-position)) (send completions-box insert-word (get-word-at (get-end-position))))
+              	(constrict-possible-completions (get-word-at (get-end-position)))
+              	(displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@"))]
              [else
               (destroy-completions-box)
               (super on-char key-event)]))]
         [(completion-mode-key-event? key-event)
          (begin
+           (when (get-word-at (get-end-position)) (send editor-trie delete-word (get-word-at (get-end-position)) 1))
            (super on-char key-event)
            (auto-complete))]
         [else 
@@ -4141,7 +4155,8 @@ designates the character that triggers autocompletion
     (define/private (insert-currently-selected-string)
       (let ([css (send completions-box get-current-selection)])
         (begin (insert (string-append css (autocomplete-append-after)) word-start-pos word-end-pos)
-               (send completions-box insert-word (get-word-at (get-end-position))))))
+               (send completions-box insert-word (get-word-at (get-end-position)))
+               )))
     
     (super-new)))
 
@@ -4216,7 +4231,14 @@ designates the character that triggers autocompletion
     (define/public (insert-word word)
       (begin (displayln "Inserting Word : ")
       		 (displayln word)
-             (send editor-trie add-word word 1)))
+             (send editor-trie add-word word 1)
+             (send editor-trie show-trie)))
+
+    (define/public (delete-word word)
+      (begin (displayln "Deleting Word : ")
+      		 (displayln word)
+             (send editor-trie delete-word word 1)
+             (send editor-trie show-trie)))
     
     (initialize-state!)
     (super-new)))
@@ -4240,6 +4262,7 @@ designates the character that triggers autocompletion
     narrow                 ; char -> boolean
     widen                  ;      -> boolean
     insert-word            ; string -> void
+    delete-word 		   ; string -> void 
     empty?))               ; -> boolean
 
 
@@ -4513,6 +4536,9 @@ designates the character that triggers autocompletion
 
     (define/public (insert-word word)
       (send completions insert-word word))
+
+    (define/public (delete-word word)
+      (send completions delete-word word))
     
     ;; narrow : char -> boolean
     ;; narrows the given selection given a new character (faster than recomputing the whole thing)
