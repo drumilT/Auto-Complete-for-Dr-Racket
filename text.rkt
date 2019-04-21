@@ -3815,6 +3815,88 @@ designates the character that triggers autocompletion
 
 |#
 
+(define editor-trie (new prefix-tree% [initial-word-list '()
+                                       ]))
+(define autocompletion-cursor<%>
+  (interface ()
+    get-completions  ;      -> (listof string)
+    get-length       ;      -> int
+    empty?           ;      -> boolean
+    narrow           ; char -> autocompletion-cursor<%>
+    widen))          ; char -> autocompletion-cursor<%>
+   
+
+;; string -> (values (string -> real) natural)
+;; produce a ranking function and a max normal score
+;; the ranking function is as follows:
+;; w |-> +inf.0 if `prefix' is a prefix of w
+;; w |-> 1000 if `prefix' appears in w
+;; w |-> n if n parts of `prefix' appear in w as first segments
+;; the max normal score is the largest n that the last clause can produce
+;(define (rank prefix)
+;  (define splitters "[-/:_!]")
+;  (define parts (regexp-split splitters prefix))
+;  (define re (regexp (string-append "^" (regexp-quote prefix))))
+;  (values (λ (w) (cond
+;                   [(regexp-match re w) +inf.0]
+;                   ;; it's a very good match prefix appears in the word
+;                   [(regexp-match (regexp-quote prefix) w) 1000]
+;                   ;; otherwise, we iterate and check each component of
+;                   [else
+;                    (for/fold ([c 0]) ([r parts])
+;                      (define rq (regexp-quote r))
+;                      (cond [(regexp-match (string-append "^" rq) w)
+;                             (+ 1 c)]
+;                            [(regexp-match (string-append splitters rq) w)
+;                             (+ 1 c)]
+;                            [else c]))]))
+;          (length parts)))
+
+;; ============================================================
+;; autocompletion-cursor<%> implementation
+
+(define autocompletion-cursor%
+  (class* object% (autocompletion-cursor<%>)
+   
+    (init-field word)       
+   
+    ;(define-values (rnk max-count) (rank word))
+    ;; this determines the fuzziness
+    ;; if we set mx to +inf.0, we get just the prefix matches
+    ;; if we set mx to 1000, we get just the matches somewhere in the word
+    ;; this definition is fuzzier the more parts there are in the word
+;    (define mx (cond
+;                 [(<= max-count 2) max-count]
+;                 [(<= max-count 4) (- max-count 1)]
+;                 [else (- max-count 2)]))
+;   
+    ;; all the possible completions for `word', in ranked order
+    (define all-completions
+      (send editor-trie get-all-completions word))
+   
+    (define all-completions-length (length all-completions))
+   
+    (define/public (narrow prefix)
+      (set! word prefix)
+      this)
+   
+    (define/public (widen prefix)
+      (let ([strlen (string-length word)])
+        (cond
+          [(< strlen 2) #f]
+          [else
+           (set! word prefix)
+           this])))
+;           (new autocompletion-cursor%
+;                [word (substring word 0 (- (string-length word) 1))]
+;                [all-words all-words])])))
+;   
+    (define/public (get-completions) all-completions)
+    (define/public (get-length) all-completions-length)
+    (define/public (empty?) (eq? (get-length) 0))
+   
+    (super-new)))
+
 (define autocomplete<%>
   (interface ((class->interface text%))
     auto-complete
@@ -3833,7 +3915,7 @@ designates the character that triggers autocompletion
 (define autocomplete-mixin
   (mixin ((class->interface text%)) (autocomplete<%>)
     
-    (inherit invalidate-bitmap-cache get-dc get-start-position get-end-position
+    (inherit invalidate-bitmap-cache get-dc get-start-position get-end-position get-character
              find-wordbreak get-text position-location insert dc-location-to-editor-location)
     
     ; get-autocomplete-border-color : -> string
@@ -3872,8 +3954,7 @@ designates the character that triggers autocompletion
     ; linear-search at every narrow/widen.
     (define/private (get-completions word) 
       (new autocompletion-cursor% 
-           [word word] 
-           [all-words (get-all-words)]))
+           [word word]))
     
     (define/override (on-paint before? dc left top right bottom dx dy draw-caret)
       (super on-paint before? dc left top right bottom dx dy draw-caret)
@@ -3881,11 +3962,30 @@ designates the character that triggers autocompletion
         (send completions-box draw dc dx dy)))
     
 
+    (define (pos-last-space x)
+      (cond [(or (char-whitespace? (get-character x)) (char-punctuation? (get-character x))) x]
+            [(equal? x 0) -1]
+            [else (pos-last-space (- x 1))]))
+    (define (pos-first-space x)
+      (cond [(equal? #\nul (get-character x)) (+ x 1)]
+        [(or (char-whitespace? (get-character x)) (char-punctuation? (get-character x))) x]
+            [else (pos-first-space (+ x 1))]))
+
     (define/public (get-start-end-position current-pos)
-    	(let ([start-pos (box current-pos)]
-            [end-pos (box current-pos)]) 
-        (begin (find-wordbreak start-pos end-pos 'selection)
-        	(cons (unbox start-pos) (unbox end-pos)))))
+            (cons (+ (pos-last-space current-pos) 1) (- (pos-first-space current-pos) 1)))
+   
+    (define/public (get-word-at x)
+      (if (equal? (pos-first-space x) (pos-last-space x)) #f
+   			(let* ((curword (get-text (+ (pos-last-space x) 1) (- (pos-first-space x) 1)))
+             	   (f (filter (lambda (x) (not (char-whitespace? x))) (string->list curword))))
+            (if (not (null? f)) (list->string f) #f))))
+
+
+    ; (define/public (get-start-end-position current-pos mode)
+    ;   (let ([start-pos (box current-pos)]
+    ;         [end-pos (box current-pos)]) 
+    ;     (begin (find-wordbreak start-pos end-pos mode)
+    ;            (cons (unbox start-pos) (unbox end-pos)))))
 
 
     ;; (-> void)
@@ -3903,15 +4003,15 @@ designates the character that triggers autocompletion
     ;; Number -> String
     ;; The word that ends at the current position of the editor
     ;; update the word around the current position of the cursor
-    (define/public (get-word-at current-pos)
-      (let ([start-pos (box current-pos)]
-            [end-pos (box current-pos)]) 
-        (begin (find-wordbreak start-pos end-pos 'selection)
-               (let* ([temp-word (get-text (unbox start-pos) (unbox end-pos))]
-                     [the-word (list->string (filter (lambda (x) (not (char-whitespace? x)))
-                                                     (string->list temp-word)))])
-                 (begin (displayln the-word)
-                        the-word)))))
+    ; (define/public (get-word-at current-pos)
+    ;   (let ([start-pos (box current-pos)]
+    ;         [end-pos (box current-pos)]) 
+    ;     (begin (find-wordbreak start-pos end-pos 'selection)
+    ;            (let* ([temp-word (get-text (unbox start-pos) (unbox end-pos))]
+    ;                  [the-word (list->string (filter (lambda (x) (not (char-whitespace? x)))
+    ;                                                  (string->list temp-word)))])
+    ;              (begin (displayln the-word)
+    ;                     the-word)))))
     
     ;; String Number Number scrolling-cursor<%> -> void
     ;; Popup a menu of the given words at the location of the end-pos. Each menu item
@@ -3963,12 +4063,13 @@ designates the character that triggers autocompletion
               (begin
               	(displayln "backspace-key-event")
               	(displayln (get-word-at (get-end-position)))
-              	(widen-possible-completions) ;; send word
-              	(super on-char key-event))]
+                (super on-char key-event)
+              	(widen-possible-completions (get-word-at (get-end-position))))]
              [(eq? code #\return)
-              (when full?
-                (insert-currently-selected-string)) ;; change this so that it also inserts to trie 
-              (destroy-completions-box)] ;; moreover make sure it removes full word around cursor.. if in between
+              (begin (cond [full? (insert-currently-selected-string)]
+              			   [else (send completions-box insert-word (get-word-at
+                                                  (get-end-position)))]) ;; change this so that it also inserts to trie 
+              		 (destroy-completions-box))] ;; moreover make sure it removes full word around cursor.. if in between
              ;; add a case to check space and a closing bracket(e.g.  (lambda (x) (...) ))
              ;; it will first destroy completions box
              ;; then it will divide x|y to x |y where x and y can be of 0 or more in length
@@ -3978,7 +4079,7 @@ designates the character that triggers autocompletion
               	(displayln "completion-key-event")
               	(displayln (get-word-at (get-end-position)))
                	(super on-char key-event)
-              	(constrict-possible-completions code))];; send word instead of code
+              	(constrict-possible-completions (get-word-at (get-end-position))))];; send word instead of code
              [else
               (destroy-completions-box)
               (super on-char key-event)]))]
@@ -4010,16 +4111,16 @@ designates the character that triggers autocompletion
                (super on-event mouse-event)))]
         [else (super on-event mouse-event)]))
     
-    (define/private (constrict-possible-completions char)
-      (set! word-end-pos (add1 word-end-pos))
+    (define/private (constrict-possible-completions word)
+      (set! word-end-pos (cdr (get-start-end-position (get-end-position))))
       (let-values ([(x0 y0 x1 y1) (send completions-box get-menu-coordinates)])
-        (send completions-box narrow char)
+        (send completions-box narrow word)
         (let-values ([(_ __ x1p y1p) (send completions-box get-menu-coordinates)])
           (invalidate-bitmap-cache x0 y0 (max x1 x1p) (max y1 y1p)))))
     
-    (define/private (widen-possible-completions)
+    (define/private (widen-possible-completions word)
       (let-values ([(x0 y0 x1 y1) (send completions-box get-menu-coordinates)])
-        (let ([reasonable? (send completions-box widen)])
+        (let ([reasonable? (send completions-box widen word)])
           (cond
             [reasonable?
              (let-values ([(_ __ x1p y1p) (send completions-box get-menu-coordinates)])
@@ -4039,7 +4140,8 @@ designates the character that triggers autocompletion
     ;; inserts the string that is currently being autoselected
     (define/private (insert-currently-selected-string)
       (let ([css (send completions-box get-current-selection)])
-        (insert (string-append css (autocomplete-append-after)) word-start-pos word-end-pos)))
+        (begin (insert (string-append css (autocomplete-append-after)) word-start-pos word-end-pos)
+               (send completions-box insert-word (get-word-at (get-end-position))))))
     
     (super-new)))
 
@@ -4097,19 +4199,24 @@ designates the character that triggers autocompletion
           (set! all-completions (append (drop all-completions n) (take all-completions n)))
           (set! visible-completions (take all-completions (autocomplete-limit))))))
     
-    (define/public (narrow char)
-      (let ([new-cursor (send cursor narrow char)])
+    (define/public (narrow word)
+      (let ([new-cursor (send cursor narrow word)])
         (set! cursor new-cursor)
         (initialize-state!)))
     
-    (define/public (widen)
-      (let ([new-cursor (send cursor widen)])
+    (define/public (widen word)
+      (let ([new-cursor (send cursor widen word)])
         (cond
           [new-cursor
            (set! cursor new-cursor)
            (initialize-state!)
            #t]
           [else #f])))
+
+    (define/public (insert-word word)
+      (begin (displayln "Inserting Word : ")
+      		 (displayln word)
+             (send editor-trie add-word word 1)))
     
     (initialize-state!)
     (super-new)))
@@ -4132,6 +4239,7 @@ designates the character that triggers autocompletion
     get-current-selection  ; -> string
     narrow                 ; char -> boolean
     widen                  ;      -> boolean
+    insert-word            ; string -> void
     empty?))               ; -> boolean
 
 
@@ -4402,11 +4510,14 @@ designates the character that triggers autocompletion
     ;; returns the selected string
     (define/public (get-current-selection)
       (list-ref (send completions get-visible-completions) highlighted-menu-item))
+
+    (define/public (insert-word word)
+      (send completions insert-word word))
     
     ;; narrow : char -> boolean
     ;; narrows the given selection given a new character (faster than recomputing the whole thing)
-    (define/public (narrow char)
-      (send completions narrow char)
+    (define/public (narrow word)
+      (send completions narrow word)
       (set! highlighted-menu-item 0)
       (set! geometry (compute-geometry))
       (not (send completions empty?)))
@@ -4414,8 +4525,8 @@ designates the character that triggers autocompletion
     ;; widen : -> boolean
     ;; attempts widens the selection by eliminating the last character from the word.
     ;; returns #f if that cannot be done (because there are no characters left); #t otherwise
-    (define/public (widen)
-      (let ([successfully-widened? (send completions widen)])
+    (define/public (widen word)
+      (let ([successfully-widened? (send completions widen word)])
         (cond
           [successfully-widened?
            (set! highlighted-menu-item 0)
