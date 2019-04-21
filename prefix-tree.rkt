@@ -1,4 +1,6 @@
 #lang racket
+(provide prefix-tree%
+	     gnode)
 
 (struct gnode (alphabet frequency childlist) #:transparent)
 
@@ -142,11 +144,11 @@
             ['both   (cons (car wc-split)
                            (string->number (cadr wc-split)))]))))))
 
-(define dictionary
-  (take (read-hist-word-list "google-books-common-words.txt") 10))
+; (define dictionary
+;   (take (read-hist-word-list "../google-books-common-words.txt") 10))
 
-;(define dictionary
-;  (list "apple" "ant" "aloha" "always" "almight"))
+; ;(define dictionary
+; ;  (list "apple" "ant" "aloha" "always" "almight"))
 
-(define my-trie (new prefix-tree%
-                     [initial-word-list dictionary]))
+; (define my-trie (new prefix-tree%
+;                      [initial-word-list dictionary]))

@@ -3880,6 +3880,14 @@ designates the character that triggers autocompletion
       (when (and completions-box (not before?))
         (send completions-box draw dc dx dy)))
     
+
+    (define/public (get-start-end-position current-pos)
+    	(let ([start-pos (box current-pos)]
+            [end-pos (box current-pos)]) 
+        (begin (find-wordbreak start-pos end-pos 'selection)
+        	(cons (unbox start-pos) (unbox end-pos)))))
+
+
     ;; (-> void)
     ;; Check for possible completions of the current word and give the user a menu for them.
     (define/public-final (auto-complete)
@@ -3887,20 +3895,23 @@ designates the character that triggers autocompletion
         (let* ([end-pos (get-end-position)]
                [word (get-word-at end-pos)]
                [completion-cursor (get-completions word)])
-          (let ([start-pos (- end-pos (string-length word))])
-            (set! word-start-pos start-pos)
-            (set! word-end-pos end-pos)
-            (show-options word start-pos end-pos completion-cursor)))))
+          (let ([positions (get-start-end-position (get-end-position))])
+            (set! word-start-pos (car positions))
+            (set! word-end-pos (cdr positions))
+            (show-options word (car positions) (cdr positions) completion-cursor)))))
     
     ;; Number -> String
     ;; The word that ends at the current position of the editor
+    ;; update the word around the current position of the cursor
     (define/public (get-word-at current-pos)
       (let ([start-pos (box current-pos)]
             [end-pos (box current-pos)]) 
-        (find-wordbreak start-pos end-pos 'caret)
-        (let ([the-word (get-text (unbox start-pos) (unbox end-pos))])
-        	(begin (displayln the-word)
-                       the-word))))
+        (begin (find-wordbreak start-pos end-pos 'selection)
+               (let* ([temp-word (get-text (unbox start-pos) (unbox end-pos))]
+                     [the-word (list->string (filter (lambda (x) (not (char-whitespace? x)))
+                                                     (string->list temp-word)))])
+                 (begin (displayln the-word)
+                        the-word)))))
     
     ;; String Number Number scrolling-cursor<%> -> void
     ;; Popup a menu of the given words at the location of the end-pos. Each menu item
@@ -3950,13 +3961,14 @@ designates the character that triggers autocompletion
               (void)]
              [(eq? code #\backspace)
               (begin
-              	(get-word-at (get-end-position)) 
-              	(widen-possible-completions) ;;check if its checking applying backspace in the middle of word
+              	(displayln "backspace-key-event")
+              	(displayln (get-word-at (get-end-position)))
+              	(widen-possible-completions) ;; send word
               	(super on-char key-event))]
              [(eq? code #\return)
               (when full?
-                (insert-currently-selected-string)) ;; change this so that it also inserts to trie
-              (destroy-completions-box)]
+                (insert-currently-selected-string)) ;; change this so that it also inserts to trie 
+              (destroy-completions-box)] ;; moreover make sure it removes full word around cursor.. if in between
              ;; add a case to check space and a closing bracket(e.g.  (lambda (x) (...) ))
              ;; it will first destroy completions box
              ;; then it will divide x|y to x |y where x and y can be of 0 or more in length
@@ -3966,7 +3978,7 @@ designates the character that triggers autocompletion
               	(displayln "completion-key-event")
               	(displayln (get-word-at (get-end-position)))
                	(super on-char key-event)
-              	(constrict-possible-completions code))]
+              	(constrict-possible-completions code))];; send word instead of code
              [else
               (destroy-completions-box)
               (super on-char key-event)]))]
