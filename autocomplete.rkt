@@ -1,10 +1,10 @@
-#lang racket/base
+#lang racket
 
 (require racket/class racket/match racket/list)
 (provide prefix-tree%
          gnode)
 
-(struct gnode (alphabet frequency childlist) #:transparent)
+(struct gnode (alphabet frequency childlist) #:transparent #:mutable)
 
 (define prefix-tree%
   (class object%
@@ -15,39 +15,41 @@
     (init-field initial-word-list)
 
     ;; private variable to define the trie
-    (define main-trie (gnode #\space 10 '()))
+    (define main-trie (gnode #\space +inf.0 '()))
 
     ;; temp for using map without displaying
     (define te 1)
-
     ;; add all the initial words to the trie
     (set! te (map (lambda (x) (add-word x 1)) initial-word-list))
 
     ;; public function to add a word
     (define/public (add-word word num)
-      (define (add-word-helper word-to-list num trie)
-        (match word-to-list
+      (define (add-word-helper word num trie)
+        (match word
           [(cons x '())
-           #:when (equal? x (gnode-alphabet trie))
-           (gnode (gnode-alphabet trie)
-                  (+ (gnode-frequency trie) num)
-                  (gnode-childlist trie))]
+           (match trie
+             [(gnode alp fr chl)
+              #:when (equal? alp x)
+              (begin (set-gnode-frequency! trie (+ fr num))
+                     trie)]
+             [_ trie]
+             )]
           [(cons x rest)
-           #:when (equal? x (gnode-alphabet trie))
-           (let ([insert-point (ormap (lambda (x) (equal? (car rest) (gnode-alphabet x)))
-                                      (gnode-childlist trie))])
-             (if (equal? #f insert-point)
-                 (gnode (gnode-alphabet trie)
-                        (gnode-frequency trie)
-                        (cons (add-word-helper rest num
-                                               (gnode (car rest) 0 '()))
-                              (gnode-childlist trie)))
-                 (gnode (gnode-alphabet trie)
-                        (gnode-frequency trie)
-                        (map (lambda (x) (add-word-helper rest num x))
-                             (gnode-childlist trie)))))]
-          [_ trie]))
-        (set! main-trie (add-word-helper (cons #\space (string->list (string-downcase word))) num main-trie)))
+           (match trie
+             [(gnode alp fr chl)
+              #:when (equal? alp x)
+              (let ([insert-point (ormap (lambda (x) (equal? (car rest) (gnode-alphabet x)))
+                                         chl)])
+                (if (equal? #f insert-point)
+                    (begin (set-gnode-childlist! trie (cons (add-word-helper rest num (gnode (car rest) 0 '()))
+                                                            chl))
+                           trie)
+                    (begin (set-gnode-childlist! trie (map (lambda (x) (add-word-helper rest num x))
+                                                           chl))
+                           trie)))]
+             [_ trie]
+             )]))
+        (add-word-helper (cons #\space (string->list  word)) num main-trie))
 
 
    
@@ -80,18 +82,32 @@
       (define (get-all-completions-helper prefix build-prefix trie)
         (match prefix
           ['()
-           (map (lambda (z) (cons (list->string (append build-prefix (car z))) (cdr z)))
+           (match trie
+             [(gnode _ _ _)
+              (map (lambda (z) (cons (list->string (append (reverse build-prefix) (car z))) (cdr z)))
                 (all-suffixes trie))]
+             [_ (begin (displayln trie)
+                       trie)])]
           [(cons x rest)
-           #:when (equal? x (gnode-alphabet trie))
-           (append-map (lambda (z) (get-all-completions-helper rest
-                                                        build-prefix
-                                                        z))
-                       (gnode-childlist trie))]
+           (match trie
+             [(gnode alp fre chl)
+              #:when (equal? x alp)
+              (cond [(equal? x #\space)
+                     (append-map (lambda (z) (get-all-completions-helper rest build-prefix z))
+                                 chl)]
+                    [(and (equal? rest '()) (equal? chl '()) (> fre 0))
+                     (list (cons (list->string (reverse (cons x build-prefix))) fre))]
+                    [else
+                     (append-map (lambda (z) (get-all-completions-helper rest (cons x build-prefix) z))
+                                 chl)])]
+             [(gnode alp _ chl)
+              (append-map (lambda (z) (get-all-completions-helper prefix (cons alp build-prefix) z))
+                          chl)]
+             [_ '()])]
           [_ '()]))
       (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
-                                  (string->list prefix)
-                                  main-trie) #:key cdr >)))
+                                  '()
+                                  main-trie) #:key cdr >)));;
    
 
 
@@ -104,17 +120,19 @@
            (match trie
              [(gnode alp fr chl)
               #:when (equal? alp x)
-              (gnode alp (max 0 (- fr freq)) chl)]
-             [_ trie])]
+              (begin (set-gnode-frequency! trie (max 0 (- fr freq)))
+                     trie)]
+             [_ trie]
+             )]
           [(cons x rest)
            (match trie
              [(gnode alp fr chl)
               #:when (equal? alp x)
-              (gnode alp fr (map (lambda (x) (dwf-helper rest freq x)) chl))]
-             [_ trie])]))
-      (set! main-trie (dwf-helper (cons #\space (string->list word))
-                                  freq
-                                  main-trie)))
+              (begin (set-gnode-childlist! trie (map (lambda (x) (dwf-helper rest freq x)) chl))
+                     trie)]
+             [_ trie]
+             )]))
+      (dwf-helper (cons #\space (string->list word)) freq main-trie))
    
     (define/public (prune trie)
       (match trie
@@ -135,25 +153,25 @@
 
     ))
 ;
-;(define (read-hist-word-list file-path #:pick? [choice 'word])
-;  (call-with-input-file file-path
-;    (lambda (fin)
-;      (for/list ([word-count (in-lines fin)])
-;        (let ([wc-split (string-split word-count #:trim? #t)])
-;          (match choice
-;            ['word   (car wc-split)]
-;            ['counts (string->number (cadr wc-split))]
-;            ['both   (cons (car wc-split)
-;                           (string->number (cadr wc-split)))]))))))
+(define (read-hist-word-list file-path #:pick? [choice 'word])
+  (call-with-input-file file-path
+    (lambda (fin)
+      (for/list ([word-count (in-lines fin)])
+        (let ([wc-split (string-split word-count #:trim? #t)])
+          (match choice
+            ['word   (car wc-split)]
+            ['counts (string->number (cadr wc-split))]
+            ['both   (cons (car wc-split)
+                           (string->number (cadr wc-split)))]))))))
 
-; (define dictionary
-;   (take (read-hist-word-list "../google-books-common-words.txt") 10))
+ (define dictionary
+   (read-hist-word-list "../google-books-common-words.txt"))
 
-; ;(define dictionary
-; ;  (list "apple" "ant" "aloha" "always" "almight"))
+ ;(define dictionary
+ ;  (list "apple" "ant" "aloha" "always" "almight"))
 
-; (define my-trie (new prefix-tree%
-;                      [initial-word-list dictionary]))
+ (define my-trie (new prefix-tree%
+                      [initial-word-list dictionary]))
 
 ;(define editor-trie (new prefix-tree% [initial-word-list '()
 ;                                       ]))
