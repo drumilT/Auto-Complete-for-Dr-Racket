@@ -1,4 +1,5 @@
 #lang racket
+(require racket/string)
 (require racket/gui)
 (require "prefix-tree.rkt")
 (define mytree (new prefix-tree% [initial-word-list '()])) 
@@ -13,6 +14,7 @@
     (define start 0)
      (inherit/super get-end-position)
     (inherit/super get-start-position)
+    (inherit/super get-character)
     (super-new)
     
     (define/public (get-word-around-cursor)
@@ -66,15 +68,40 @@
                (display (super get-text (unbox (list-ref start-pos 8)) (unbox (list-ref end-pos 8))))
                (displayln "<<")
                (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@")
+               (displayln "<<")
+               (super find-wordbreak (list-ref start-pos 8) (list-ref end-pos 8) 'line)
+               (displayln "find-wordbreak start-pos end-pos 'line")
+               (display ">>")
                )
         ))
-    
+    (define (new-word-getter curpos)
+    (define (flter word)
+      (if (null? (string-split word)) #f
+          (car (string-split word))))
+      (let*
+          ((curpos1 (box curpos))
+           (curpos2 (box curpos))
+            (prevchar (if (zero? curpos) #f (get-character (- curpos 1)))))
+      (cond
+        [(and prevchar (char-whitespace? prevchar)) (if (char-whitespace? (get-character curpos)) #f
+         (begin (super find-wordbreak #f curpos2 'caret)
+                                        (flter (get-text curpos (unbox curpos2) 'caret))))]
+
+        [(char-whitespace? (get-character curpos))
+         (begin (super find-wordbreak curpos1 #f 'caret)
+                                        (flter (get-text (unbox curpos1) curpos 'caret)))]
+        [else
+             (begin (super find-wordbreak curpos1 curpos2 'caret)
+                    (flter (get-text (unbox curpos1) (unbox curpos2))))]
+           )))
     (define/override (on-char key-event)
+      (displayln (new-word-getter (get-end-position)))
       (let ((code (send key-event get-key-code)))
         (cond [(equal? code #\space) (begin (send mytree add-word (super get-text start (get-end-position)) 1) (set! start (+ (get-end-position) 1)) (super on-char key-event))]
               [(equal? code #\backspace) (begin (send mytree delete-word (super get-text start (get-end-position)) 1) (super on-char key-event))]
               [else (begin (super on-char key-event)
-                           (get-word-around-cursor))]
+                           ;(get-word-around-cursor)
+                           )]
               )))))
 (define t (new mytext%))
 (send c set-editor t)
