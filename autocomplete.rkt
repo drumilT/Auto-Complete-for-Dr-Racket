@@ -65,8 +65,6 @@
                                (append-map (lambda (z) (all-suffixes z)) chl))]
         [_ (error "Suffix not a gnode")]))
 
-   
-
     ;; public function to display the trie
     (define/public (show)
        (map (lambda (z) (cons (list->string (cdr (car z))) (cdr z))) (all-suffixes main-trie)))
