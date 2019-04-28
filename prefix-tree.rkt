@@ -1,7 +1,9 @@
 #lang racket
+(provide prefix-tree%
+	     gnode)
 
 (struct gnode (alphabet frequency childlist) #:transparent)
-
+ 
 (define prefix-tree%
   (class object%
 
@@ -11,7 +13,7 @@
     (init-field initial-word-list)
 
     ;; private variable to define the trie
-    (define main-trie (gnode #\space 0 '()))
+    (define main-trie (gnode #\space +inf.0 '()))
 
     ;; temp for using map without displaying
     (define te 1)
@@ -43,7 +45,7 @@
                         (map (lambda (x) (add-word-helper rest num x))
                              (gnode-childlist trie)))))]
           [_ trie]))
-        (set! main-trie (add-word-helper (cons #\space (string->list (string-downcase word))) num main-trie)))
+        (when word (set! main-trie (add-word-helper (cons #\space (string->list (string-downcase word))) num main-trie))))
 
 
     
@@ -85,9 +87,9 @@
                                                         z))
                        (gnode-childlist trie))]
           [_ '()]))
-      (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
+      (if (not prefix) '() (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
                                   (string->list prefix)
-                                  main-trie) #:key cdr >)))
+                                  main-trie) #:key cdr >))))
     
 
 
@@ -108,9 +110,9 @@
               #:when (equal? alp x)
               (gnode alp fr (map (lambda (x) (dwf-helper rest freq x)) chl))]
              [_ trie])]))
-      (set! main-trie (dwf-helper (cons #\space (string->list word))
+      (when word (set! main-trie (dwf-helper (cons #\space (string->list word))
                                   freq
-                                  main-trie)))
+                                  main-trie))))
     
     (define/public (prune trie)
       (match trie
@@ -142,11 +144,11 @@
             ['both   (cons (car wc-split)
                            (string->number (cadr wc-split)))]))))))
 
-(define dictionary
-  (take (read-hist-word-list "google-books-common-words.txt") 10))
+; (define dictionary
+;   (take (read-hist-word-list "../google-books-common-words.txt") 10))
 
-;(define dictionary
-;  (list "apple" "ant" "aloha" "always" "almight"))
+; ;(define dictionary
+; ;  (list "apple" "ant" "aloha" "always" "almight"))
 
-(define my-trie (new prefix-tree%
-                     [initial-word-list dictionary]))
+; (define my-trie (new prefix-tree%
+;                      [initial-word-list dictionary]))
