@@ -45,7 +45,7 @@
                         (map (lambda (x) (add-word-helper rest num x))
                              (gnode-childlist trie)))))]
           [_ trie]))
-        (set! main-trie (add-word-helper (cons #\space (string->list (string-downcase word))) num main-trie)))
+        (when word (set! main-trie (add-word-helper (cons #\space (string->list (string-downcase word))) num main-trie))))
 
 
     
@@ -87,9 +87,9 @@
                                                         z))
                        (gnode-childlist trie))]
           [_ '()]))
-      (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
+      (if (not prefix) '() (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
                                   (string->list prefix)
-                                  main-trie) #:key cdr >)))
+                                  main-trie) #:key cdr >))))
     
 
 
@@ -110,9 +110,9 @@
               #:when (equal? alp x)
               (gnode alp fr (map (lambda (x) (dwf-helper rest freq x)) chl))]
              [_ trie])]))
-      (set! main-trie (dwf-helper (cons #\space (string->list word))
+      (when word (set! main-trie (dwf-helper (cons #\space (string->list word))
                                   freq
-                                  main-trie)))
+                                  main-trie))))
     
     (define/public (prune trie)
       (match trie

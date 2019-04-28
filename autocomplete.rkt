@@ -4,6 +4,10 @@
 (provide prefix-tree%
          gnode)
 
+;; add edit distance function style
+;; try making (hof tree prefix node-pred-list node-perform-list)
+
+
 (struct gnode (alphabet frequency childlist) #:transparent #:mutable)
 
 (define prefix-tree%
@@ -20,10 +24,17 @@
     ;; temp for using map without displaying
     (define te 1)
     ;; add all the initial words to the trie
-    (set! te (map (lambda (x) (add-word x 1)) initial-word-list))
+    (set! te (insert-words (map (lambda (x) (cons x 1)) initial-word-list)))
 
+    ;; public function to display the trie
+    (define/public (show)
+       (map (lambda (z) (cons (list->string (cdr (car z))) (cdr z))) (all-suffixes main-trie)))
+
+    (define/public (show-trie)
+      (displayln main-trie))
+    
     ;; public function to add a word
-    (define/public (add-word word num)
+    (define/public (insert-word-freq word num)
       (define (add-word-helper word num trie)
         (match word
           [(cons x '())
@@ -51,68 +62,7 @@
              )]))
         (add-word-helper (cons #\space (string->list  word)) num main-trie))
 
-
-   
-    ;; private function that gets all suffixes from this node
-
-    (define/private (all-suffixes trie)
-      (match trie
-        [(gnode alp freq chl)
-         #:when (> freq 0)
-         (cons (cons (list alp) freq)
-               (map (lambda (y) (cons (cons alp (car y)) (cdr y)))
-                               (append-map (lambda (z) (all-suffixes z)) chl)))]
-        [(gnode alp freq chl)
-         (map (lambda (y) (cons (cons alp (car y)) (cdr y)))
-                               (append-map (lambda (z) (all-suffixes z)) chl))]
-        [_ (error "Suffix not a gnode")]))
-
-   
-
-    ;; public function to display the trie
-    (define/public (show)
-       (map (lambda (z) (cons (list->string (cdr (car z))) (cdr z))) (all-suffixes main-trie)))
-
-    (define/public (show-trie)
-      (displayln main-trie))
-
-
-    ;; public function that finds all completions for a given prefix
-    (define/public (get-all-completions prefix)
-      (define (get-all-completions-helper prefix build-prefix trie)
-        (match prefix
-          ['()
-           (match trie
-             [(gnode _ _ _)
-              (map (lambda (z) (cons (list->string (append (reverse build-prefix) (car z))) (cdr z)))
-                (all-suffixes trie))]
-             [_ (begin (displayln trie)
-                       trie)])]
-          [(cons x rest)
-           (match trie
-             [(gnode alp fre chl)
-              #:when (equal? x alp)
-              (cond [(equal? x #\space)
-                     (append-map (lambda (z) (get-all-completions-helper rest build-prefix z))
-                                 chl)]
-                    [(and (equal? rest '()) (equal? chl '()) (> fre 0))
-                     (list (cons (list->string (reverse (cons x build-prefix))) fre))]
-                    [else
-                     (append-map (lambda (z) (get-all-completions-helper rest (cons x build-prefix) z))
-                                 chl)])]
-             [(gnode alp _ chl)
-              (append-map (lambda (z) (get-all-completions-helper prefix (cons alp build-prefix) z))
-                          chl)]
-             [_ '()])]
-          [_ '()]))
-      (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
-                                  '()
-                                  main-trie) #:key cdr >)));;
-   
-
-
     ;; public function to delete the frequency of a word from the trie
-
     (define/public (delete-word-freq word freq)
       (define (dwf-helper word freq trie)
         (match word
@@ -151,27 +101,89 @@
       (begin (delete-word-freq word freq)
              (set! main-trie (prune main-trie))))
 
+    (define/public (delete-words lst)
+      (begin (map (lambda (z) (delete-word (car z) (cdr z))) lst)
+             (set! main-trie (prune main-trie))))
+
+    (define/public (insert-word word freq)
+      (begin (insert-word-freq word freq)
+             (set! main-trie (prune main-trie))))
+    
+    (define/public (insert-words lst)
+      (begin (map (lambda (z) (insert-word (car z) (cdr z))) lst)
+             (set! main-trie (prune main-trie))))
+
+   
+    ;; private function that gets all suffixes from this node
+    (define/private (all-suffixes trie)
+      (match trie
+        [(gnode alp freq chl)
+         #:when (> freq 0)
+         (cons (cons (list alp) freq)
+               (map (lambda (y) (cons (cons alp (car y)) (cdr y)))
+                               (append-map (lambda (z) (all-suffixes z)) chl)))]
+        [(gnode alp freq chl)
+         (map (lambda (y) (cons (cons alp (car y)) (cdr y)))
+                               (append-map (lambda (z) (all-suffixes z)) chl))]
+        [_ (error "Suffix not a gnode")]))
+
+   
+
+    
+
+
+    ;; public function that finds all completions for a given prefix
+    (define/public (get-all-completions prefix)
+      (define (get-all-completions-helper prefix build-prefix trie)
+        (match prefix
+          ['()
+           (match trie
+             [(gnode _ _ _)
+              (map (lambda (z) (cons (list->string (append (reverse build-prefix) (car z))) (cdr z)))
+                (all-suffixes trie))]
+             [_ (begin (displayln trie)
+                       trie)])]
+          [(cons x rest)
+           (match trie
+             [(gnode alp fre chl)
+              #:when (equal? x alp)
+              (cond [(equal? x #\space)
+                     (append-map (lambda (z) (get-all-completions-helper rest build-prefix z))
+                                 chl)]
+                    [(and (equal? rest '()) (equal? chl '()) (> fre 0))
+                     (list (cons (list->string (reverse (cons x build-prefix))) fre))]
+                    [else
+                     (append-map (lambda (z) (get-all-completions-helper rest (cons x build-prefix) z))
+                                 chl)])]
+             [(gnode alp _ chl)
+              (append-map (lambda (z) (get-all-completions-helper prefix (cons alp build-prefix) z))
+                          chl)]
+             [_ '()])]
+          [_ '()]))
+      (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
+                                  '()
+                                  main-trie) #:key cdr >)));;
     ))
 ;
-(define (read-hist-word-list file-path #:pick? [choice 'word])
-  (call-with-input-file file-path
-    (lambda (fin)
-      (for/list ([word-count (in-lines fin)])
-        (let ([wc-split (string-split word-count #:trim? #t)])
-          (match choice
-            ['word   (car wc-split)]
-            ['counts (string->number (cadr wc-split))]
-            ['both   (cons (car wc-split)
-                           (string->number (cadr wc-split)))]))))))
+;(define (read-hist-word-list file-path #:pick? [choice 'word])
+;  (call-with-input-file file-path
+;    (lambda (fin)
+;      (for/list ([word-count (in-lines fin)])
+;        (let ([wc-split (string-split word-count #:trim? #t)])
+;          (match choice
+;            ['word   (car wc-split)]
+;            ['counts (string->number (cadr wc-split))]
+;            ['both   (cons (car wc-split)
+;                           (string->number (cadr wc-split)))]))))))
 
- (define dictionary
-   (read-hist-word-list "../google-books-common-words.txt"))
-
- ;(define dictionary
- ;  (list "apple" "ant" "aloha" "always" "almight"))
+; (define dictionary
+;   (read-hist-word-list "../google-books-common-words.txt"))
+;
+; (define dictionary
+;   (list "apple" "ant" "aloha" "always" "almight"))
 
  (define my-trie (new prefix-tree%
-                      [initial-word-list dictionary]))
+                      [initial-word-list '()]))
 
 ;(define editor-trie (new prefix-tree% [initial-word-list '()
 ;                                       ]))

@@ -5,6 +5,7 @@
          racket/match
          racket/path
          racket/math
+         racket/string
          "sig.rkt"
          "interfaces.rkt"
          "../gui-utils.rkt"
@@ -3914,7 +3915,7 @@ designates the character that triggers autocompletion
   (mixin ((class->interface text%)) (autocomplete<%>)
     
     (inherit invalidate-bitmap-cache get-dc get-start-position get-end-position get-character
-             find-wordbreak get-text position-location insert dc-location-to-editor-location)
+             find-wordbreak get-text position-location insert dc-location-to-editor-location get-wordbreak-map set-wordbreak-map)
     
     ; get-autocomplete-border-color : -> string
     ; the color of text in the autocomplete menu
@@ -3923,12 +3924,11 @@ designates the character that triggers autocompletion
     ; get-background-color : -> string
     ; background color in the autocomplete menu
     (define/public (get-autocomplete-background-color) "lavender")
-    
     ; get-autocomplete-selected-color : -> string
     ; selected option background color in the autocomplete menu
     (define/public (get-autocomplete-selected-color) selected-color)
 
-    (define good-keys (append (list #\.) (string->list "0123456789QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm-")))
+    (define good-keys (append (list #\.) (string->list "0123456789QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm")))
     (define/public (completion-mode-key-event? key-event)
       (displayln (send key-event get-key-code))
       (cond
@@ -3979,17 +3979,38 @@ designates the character that triggers autocompletion
 ;      (if (equal? (pos-first-space x) (pos-last-space x)) #f
 ;          (if (not (null? (get-text (+ (pos-last-space x) 1) (pos-first-space)))) (get-text (+ (pos-last-space x) 1) (pos-first-space)) #f)))
 ;  		
-      (define/public (get-start-end-position current-pos mode)
-        (let ([start-pos (box current-pos)]
-              [end-pos (box current-pos)]) 
-          (begin (find-wordbreak start-pos end-pos mode)
-                 ;(displayln start-pos)
-                 ;(displayln current-pos)
-                 ;(displayln end-pos)
-                 (cons start-pos end-pos))))
+;      (define/public (get-start-end-position current-pos mode)
+;        (let ([start-pos (box current-pos)]
+;              [end-pos (box current-pos)]) 
+;          (begin (find-wordbreak start-pos end-pos mode)
+;                 ;(displayln start-pos)
+;                 ;(displayln current-pos)
+;                 ;(displayln end-pos)
+;                 (cons start-pos end-pos))))
 
+    (define (invalid-punc? char)
+      (char-punctuation? char))
+    (define (char-useless? char)
+      (or (char-whitespace? char) (invalid-punc? char)))
+    (define (get-start-end-position curpos)
+      (let*
+          ((curpos1 (box curpos))
+           (curpos2 (box curpos))
+            (prevchar (if (zero? curpos) #f (get-character (- curpos 1)))))
+      (cond
+        [(and prevchar (char-useless? prevchar)) (if (char-useless? (get-character curpos)) #f
+         (begin (find-wordbreak #f curpos2 'caret)
+                                        (cons (box curpos) curpos2)))]
+
+        [(char-useless? (get-character curpos))
+         (begin (find-wordbreak curpos1 #f 'caret)
+                                        (cons curpos1 (box curpos)))]
+        [else
+             (begin (find-wordbreak curpos1 curpos2 'caret)
+                    (cons curpos1 curpos2))]
+           )))
     (define/public (word-getter current-pos mode)
-      (let* ([get-positions (get-start-end-position current-pos mode)])
+      (let* ([get-positions (get-start-end-position current-pos)])
         (begin (displayln "WORD GETTER : ")
                (displayln get-positions)
                (let* ([temp-word (get-text (unbox (car get-positions))
@@ -4005,7 +4026,7 @@ designates the character that triggers autocompletion
     ; ; The word that ends at the current position of the editor
     ; ; update the word around the current position of the cursor
       (define/public (get-word-at current-pos)
-         (let* ([temp-word (word-getter current-pos 'selection)]
+         (let* ([temp-word (new-word-getter current-pos)]
                 [the-word (list->string (filter (lambda (x) (not (char-whitespace? x)))
                                                (string->list temp-word)))])
            (begin (displayln the-word)
@@ -4016,13 +4037,12 @@ designates the character that triggers autocompletion
     (define/public-final (auto-complete)
       (when (equal? (get-start-position) (get-end-position))
         (let* ([end-pos (get-end-position)]
-               [word (word-getter end-pos 'selection)]
+               [word (new-word-getter end-pos)]
                [completion-cursor (get-completions word)])
-          (let* ([positions (get-start-end-position (get-end-position) 'selection)])
+          (let* ([positions (get-start-end-position (get-end-position))])
             (set! word-start-pos (unbox (car positions)))
             (set! word-end-pos (unbox (cdr positions)))
             (show-options word (unbox (car positions)) (unbox (cdr positions)) completion-cursor)))))
-    
     
     ;; String Number Number scrolling-cursor<%> -> void
     ;; Popup a menu of the given words at the location of the end-pos. Each menu item
@@ -4046,10 +4066,31 @@ designates the character that triggers autocompletion
         (destroy-completions-box)
         (auto-complete))
       (inner (void) after-set-position))
-    
+
+    (define (new-word-getter curpos)
+    (define (flter word)
+      (if (or (null? (string-split word)) (not word)) #f
+          (car (string-split word))))
+      (let*
+          ((curpos1 (box curpos))
+           (curpos2 (box curpos))
+            (prevchar (if (zero? curpos) #f (get-character (- curpos 1)))))
+      (cond
+        [(and prevchar (char-useless? prevchar)) (if (char-useless? (get-character curpos)) #f
+         (begin (find-wordbreak #f curpos2 'caret)
+                                        (flter (get-text curpos (unbox curpos2) 'caret))))]
+
+        [(char-useless? (get-character curpos))
+         (begin (find-wordbreak curpos1 #f 'caret)
+                                        (flter (get-text (unbox curpos1) curpos 'caret)))]
+        [else
+             (begin (find-wordbreak curpos1 curpos2 'caret)
+                    (flter (get-text (unbox curpos1) (unbox curpos2))))]
+           )))
     ;; on-char must handle inputs for two modes: normal text mode and in-the-middle-of-autocompleting
     ;; mode perhaps it would be better to handle this using the state machine pattern
     (define/override (on-char key-event)
+      (displayln (send editor-trie show))
       (cond
         [completions-box
          (let ([code (send key-event get-key-code)]
@@ -4073,7 +4114,7 @@ designates the character that triggers autocompletion
              [(eq? code #\backspace)
               (begin
                 (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'caret)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
                          (displayln "backspace-key-event")
                          (displayln word)
@@ -4081,7 +4122,7 @@ designates the character that triggers autocompletion
                          ))
                 (super on-char key-event)
                 (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'caret)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln word)
                          (when word (send completions-box insert-word word))
                          (widen-possible-completions word)
@@ -4090,7 +4131,7 @@ designates the character that triggers autocompletion
              [(eq? code #\return)
               (begin
                 (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'selection)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
                          (displayln "return-key-event")
                          (displayln word)
@@ -4108,7 +4149,7 @@ designates the character that triggers autocompletion
              [(and (char? code) (char-graphic? code))
               (begin
                 (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'caret)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
                          (displayln "letter-key-event")
                          (displayln word)
@@ -4116,7 +4157,7 @@ designates the character that triggers autocompletion
                          ))
                 (super on-char key-event)
                 (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'caret)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln word)
                          (when word (send completions-box insert-word word))
                          (constrict-possible-completions word)
@@ -4128,23 +4169,77 @@ designates the character that triggers autocompletion
         [(completion-mode-key-event? key-event)
          (begin
            (let* ([end-pos (get-end-position)]
-                  [word (word-getter end-pos 'selection)])
+                  [word (new-word-getter end-pos)])
              (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
                     (displayln "completion-key-event")
                     (displayln word)
-                    (when (and completions-box word) (send completions-box delete-word word))
+                    (when word (send editor-trie delete-word word 1))
                     ))
            (super on-char key-event)
            (auto-complete)
            (let* ([end-pos (get-end-position)]
-                       [word (word-getter end-pos 'selection)])
+                       [word (new-word-getter end-pos)])
                   (begin (displayln word)
-                         (when word (send completions-box insert-word word))
+                         (when word (send editor-trie insert-word word 1))
                          (constrict-possible-completions word)
                          (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@")))
            )]
         [else 
-         (super on-char key-event)]))
+         (let ((code (send key-event get-key-code)))
+           (cond
+             [(eq? code #\backspace)
+              (begin
+                (cond [(char-whitespace? (get-character (get-end-position)))
+                       (begin
+                         (let* ([end-pos (get-end-position)]
+                                [word (new-word-getter end-pos)]
+                                [pword (if (zero? end-pos) #f (new-word-getter (- end-pos 1)))])
+                           (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
+                                  (displayln "backspace2-key-event")
+                                  (displayln word)
+                                  (when word (send editor-trie delete-word word 1))
+                                  (when pword (send editor-trie delete-word pword 1))
+                                  ))
+                         (super on-char key-event)
+                         (let* ([end-pos (get-end-position)]
+                                [word (new-word-getter end-pos)])
+                           (begin (displayln word)
+                                  (when word (send editor-trie insert-word word 1))
+                                  (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@"))))]
+                      [else (begin
+                              (let* ([end-pos (get-end-position)]
+                                     [word (new-word-getter end-pos)])
+                                (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
+                                       (displayln "backspace-key-event")
+                                       (displayln word)
+                                       (when word (send editor-trie delete-word word 1))
+                                       ))
+                              (super on-char key-event)
+                              (let* ([end-pos (get-end-position)]
+                                     [word (new-word-getter end-pos)])
+                                (begin (displayln word)
+                                       (when word (send editor-trie insert-word word 1))
+                                       (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@")))
+                              )])) 
+              	]
+             [(or (eq? code #\return) (eq? code #\space))
+              (begin
+                (let* ([end-pos (get-end-position)]
+                       [word (new-word-getter end-pos)]
+                       [c (get-character (+ end-pos 1))]
+                       [check (or (char-whitespace? (get-character end-pos)) (equal? #\nul c) (char-whitespace? c))])
+                  (when word (send editor-trie delete-word word 1)))
+                (super on-char key-event)
+                  (let* ([end-pos (get-end-position)]
+                       [word (new-word-getter end-pos)]
+                       [pword (if (zero? end-pos) #f (new-word-getter (- end-pos 1)))])
+                  (begin 
+                         (displayln word)
+                         (when word (send editor-trie insert-word word 1))
+                         (when pword (send editor-trie insert-word pword 1))
+                         )
+               ))]
+             [else (super on-char key-event)]))]))
     
     ;; on-event controls what happens with the mouse
     (define/override (on-event mouse-event)
@@ -4168,7 +4263,7 @@ designates the character that triggers autocompletion
         [else (super on-event mouse-event)]))
     
     (define/private (constrict-possible-completions word)
-      (set! word-end-pos (unbox (cdr (get-start-end-position (get-end-position) 'selection))))
+      (set! word-end-pos (unbox (cdr (get-start-end-position (get-end-position)))))
       (let-values ([(x0 y0 x1 y1) (send completions-box get-menu-coordinates)])
         (send completions-box narrow word)
         (let-values ([(_ __ x1p y1p) (send completions-box get-menu-coordinates)])
@@ -4273,7 +4368,7 @@ designates the character that triggers autocompletion
     (define/public (insert-word word)
       (begin (displayln "Inserting Word : ")
       		 (displayln word)
-             (send editor-trie add-word word 1)
+             (send editor-trie insert-word word 1)
              ;(send editor-trie show-trie)
              ))
 
