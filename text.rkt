@@ -3915,7 +3915,7 @@ designates the character that triggers autocompletion
   (mixin ((class->interface text%)) (autocomplete<%>)
     
     (inherit invalidate-bitmap-cache get-dc get-start-position get-end-position get-character
-             find-wordbreak get-text position-location insert dc-location-to-editor-location)
+             find-wordbreak get-text position-location insert dc-location-to-editor-location get-wordbreak-map set-wordbreak-map)
     
     ; get-autocomplete-border-color : -> string
     ; the color of text in the autocomplete menu
@@ -3924,7 +3924,6 @@ designates the character that triggers autocompletion
     ; get-background-color : -> string
     ; background color in the autocomplete menu
     (define/public (get-autocomplete-background-color) "lavender")
-    
     ; get-autocomplete-selected-color : -> string
     ; selected option background color in the autocomplete menu
     (define/public (get-autocomplete-selected-color) selected-color)
@@ -3988,9 +3987,12 @@ designates the character that triggers autocompletion
 ;                 ;(displayln current-pos)
 ;                 ;(displayln end-pos)
 ;                 (cons start-pos end-pos))))
+
+    (define (invalid-punc? char)
+      (char-punctuation? char))
+    (define (char-useless? char)
+      (or (char-whitespace? char) (invalid-punc? char)))
     (define (get-start-end-position curpos)
-     (define (char-useless? char)
-      (or (char-whitespace? char) (char-punctuation? char)))
       (let*
           ((curpos1 (box curpos))
            (curpos2 (box curpos))
@@ -4066,11 +4068,9 @@ designates the character that triggers autocompletion
       (inner (void) after-set-position))
 
     (define (new-word-getter curpos)
-    (define (char-useless? char)
-      (or (char-whitespace? char) (char-punctuation? char)))
     (define (flter word)
       (if (or (null? (string-split word)) (not word)) #f
-          (list->string (filter (λ(x) (not (char-punctuation? x))) (string->list (car (string-split word)))))))
+          (car (string-split word))))
       (let*
           ((curpos1 (box curpos))
            (curpos2 (box curpos))
@@ -4205,7 +4205,7 @@ designates the character that triggers autocompletion
                          (when word (send editor-trie add-word word 1))
                          (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@")))
               	)]
-             [(or (eq? code #\return) (eq? code #\space) (and (char? code) (char-punctuation? code)))
+             [(or (eq? code #\return) (eq? code #\space) (and (char? code) (invalid-punc? code)))
               (begin
                 (let* ([end-pos (get-end-position)]
                        [word (new-word-getter end-pos)]
