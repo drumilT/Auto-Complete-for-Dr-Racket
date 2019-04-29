@@ -98,7 +98,7 @@
         [_ trie]))
 
     (define/public (delete-word word freq)
-      (begin (delete-word-freq word freq)
+      (begin (when word (delete-word-freq word freq))
              (set! main-trie (prune main-trie))))
 
     (define/public (delete-words lst)
@@ -106,7 +106,7 @@
              (set! main-trie (prune main-trie))))
 
     (define/public (insert-word word freq)
-      (begin (insert-word-freq word freq)
+      (begin (when word (insert-word-freq word freq))
              (set! main-trie (prune main-trie))))
     
     (define/public (insert-words lst)
@@ -160,9 +160,10 @@
                           chl)]
              [_ '()])]
           [_ '()]))
-      (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
+      (if (not prefix) '()
+        (map car (sort (get-all-completions-helper (cons #\space (string->list prefix))
                                   '()
-                                  main-trie) #:key cdr >)));;
+                                  main-trie) #:key cdr >))));;
     ))
 ;
 ;(define (read-hist-word-list file-path #:pick? [choice 'word])

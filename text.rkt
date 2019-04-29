@@ -3881,7 +3881,7 @@ designates the character that triggers autocompletion
       (new autocompletion-cursor% [word prefix]))
    
     (define/public (widen prefix)
-      (let ([strlen (string-length word)])
+      (let ([strlen (if (not word) 0 (string-length word))])
         (cond
           [(< strlen 2) #f]
           [else
@@ -3989,7 +3989,7 @@ designates the character that triggers autocompletion
 ;                 (cons start-pos end-pos))))
 
     (define (invalid-punc? char)
-      (char-punctuation? char))
+      (or (char-punctuation? char) (char-symbolic? char)))
     (define (char-useless? char)
       (or (char-whitespace? char) (invalid-punc? char)))
     (define (get-start-end-position curpos)
@@ -4146,7 +4146,7 @@ designates the character that triggers autocompletion
              ;; it will first destroy completions box
              ;; then it will divide x|y to x |y where x and y can be of 0 or more in length
              ;; add both x and y to the trie if they are not #\space
-             [(and (char? code) (char-graphic? code))
+             [(and (char? code) (char-graphic? code) (not (char-useless? code)))
               (begin
                 (let* ([end-pos (get-end-position)]
                        [word (new-word-getter end-pos)])
@@ -4189,12 +4189,13 @@ designates the character that triggers autocompletion
            (cond
              [(eq? code #\backspace)
               (begin
-                (cond [(char-whitespace? (get-character (get-end-position)))
+                (cond [(char-useless? (get-character (max (- (get-end-position) 1) 0)))
                        (begin
                          (let* ([end-pos (get-end-position)]
                                 [word (new-word-getter end-pos)]
                                 [pword (if (zero? end-pos) #f (new-word-getter (- end-pos 1)))])
                            (begin (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@")
+                                  (displayln pword)
                                   (displayln "backspace2-key-event")
                                   (displayln word)
                                   (when word (send editor-trie delete-word word 1))
@@ -4222,12 +4223,12 @@ designates the character that triggers autocompletion
                                        (displayln "@@@@@@@@@@@@@@@@@@@@@@@@@@")))
                               )])) 
               	]
-             [(or (eq? code #\return) (eq? code #\space))
+             [(or (eq? code #\return) (eq? code #\space) (and (char? code) (char-useless? code)))
               (begin
                 (let* ([end-pos (get-end-position)]
                        [word (new-word-getter end-pos)]
                        [c (get-character (+ end-pos 1))]
-                       [check (or (char-whitespace? (get-character end-pos)) (equal? #\nul c) (char-whitespace? c))])
+                       [check (or (char-useless? (get-character end-pos)) (equal? #\nul c) (char-useless? c))])
                   (when word (send editor-trie delete-word word 1)))
                 (super on-char key-event)
                   (let* ([end-pos (get-end-position)]
