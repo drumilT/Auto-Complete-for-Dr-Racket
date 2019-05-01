@@ -1,0 +1,57 @@
+Open/Close			Char-at-Left			Char-at-Right			Key			Ans
+Open			Good-left			Good-right			Backspace----->			delete-gwa super-oc widen insert-gwa check-left-end y destroy-box
+Open			Good-left			Good-right			Delete-------->			delete-gwa super-oc widen insert-gwa
+Open			Good-left			Good-right			SpaceBadC----->			delete-wg super-oc insert-wg
+Open			Good-left			Good-right			Return-------->			delete-gwa insert-string-trie-editor destroy-box
+Open			Good-left			Good-right			GoodChar------>			delete-gwa super-oc narrow insert-gwa
+Open			Good-left			Good-right			Left/Right---->			super-oc check-left-end y destroy-box
+Open			Good-left			Good-right			Others-------->			check-many-cases y - n super-oc check-left-end y destroy-box
+Open			Good-left			Bad-right			Backspace----->			delete-gwa super-oc widen insert-gwa check-left-end y destroy-box
+Open			Good-left			Bad-right			Delete-------->			delete-wg super-oc widen insert-wg
+Open			Good-left			Bad-right			SpaceBadC----->			super-oc check-left-end y destroy-box
+Open			Good-left			Bad-right			Return-------->			delete-gwa insert-string-trie-editor destroy-box
+Open			Good-left			Bad-right			GoodChar------>			delete-gwa super-oc narrow insert-gwa
+Open			Good-left			Bad-right			Left/Right---->			super-oc check-left-end y destroy-box
+Open			Good-left			Bad-right			Others-------->			check-many-cases y - n super-oc check-left-end y destroy-box
+Open			Bad-left			Good-right			Backspace----->			delete-wg super-oc widen insert-wg check-left-end y destroy-box
+Open			Bad-left			Good-right			Delete-------->			delete-gwa super-oc widen insert-gwa check-left-end y destroy-box
+Open			Bad-left			Good-right			SpaceBadC----->			super-oc destroy-box
+Open			Bad-left			Good-right			Return-------->			delete-gwa insert-string-trie-editor destroy-box
+Open			Bad-left			Good-right			GoodChar------>			delete-gwa super-oc narrow insert-gwa
+Open			Bad-left			Good-right			Left/Right---->			super-oc check-left-end y destroy-box
+Open			Bad-left			Good-right			Others-------->			check-many-cases y - n super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			Backspace----->			super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			Delete-------->			super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			SpaceBadC----->			super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			Return-------->			super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			GoodChar------>			delete-gwa super-oc autocomplete insert-gwa
+Open			Bad-left			Bad-right			Left/Right---->			super-oc check-left-end y destroy-box
+Open			Bad-left			Bad-right			Others-------->			check-many-cases y - n super-oc check-left-end y destroy-box
+Close			Good-left			Good-right			Backspace----->			delete-gwa super-oc insert-gwa
+Close			Good-left			Good-right			Delete-------->			delete-gwa super-oc insert-gwa
+Close			Good-left			Good-right			SpaceBadC----->			delete-wg super-oc insert-wg
+Close			Good-left			Good-right			Return-------->			delete-wg super-oc insert-wg
+Close			Good-left			Good-right			GoodChar------>			delete-gwa super-oc autocomplete insert-gwa
+Close			Good-left			Good-right			Left/Right---->			super-oc
+Close			Good-left			Good-right			Others-------->			super-oc
+Close			Good-left			Bad-right			Backspace----->			delete-gwa super-oc insert-gwa
+Close			Good-left			Bad-right			Delete-------->			delete-wg super-oc insert-wg
+Close			Good-left			Bad-right			SpaceBadC----->			super-oc
+Close			Good-left			Bad-right			Return-------->			super-oc
+Close			Good-left			Bad-right			GoodChar------>			delete-gwa super-oc autocomplete insert-gwa
+Close			Good-left			Bad-right			Left/Right---->			super-oc
+Close			Good-left			Bad-right			Others-------->			super-oc
+Close			Bad-left			Good-right			Backspace----->			delete-wg super-oc insert-wg
+Close			Bad-left			Good-right			Delete-------->			delete-gwa super-oc insert-gwa
+Close			Bad-left			Good-right			SpaceBadC----->			super-oc
+Close			Bad-left			Good-right			Return-------->			super-oc
+Close			Bad-left			Good-right			GoodChar------>			delete-gwa super-oc autocomplete insert-gwa
+Close			Bad-left			Good-right			Left/Right---->			super-oc
+Close			Bad-left			Good-right			Others-------->			super-oc
+Close			Bad-left			Bad-right			Backspace----->			super-oc
+Close			Bad-left			Bad-right			Delete-------->			super-oc
+Close			Bad-left			Bad-right			SpaceBadC----->			super-oc
+Close			Bad-left			Bad-right			Return-------->			super-oc
+Close			Bad-left			Bad-right			GoodChar------>			delete-gwa super-oc autocomplete insert-gwa
+Close			Bad-left			Bad-right			Left/Right---->			super-oc
+Close			Bad-left			Bad-right			Others-------->			super-oc
